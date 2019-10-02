@@ -1,9 +1,14 @@
 <?php
 namespace WPTRT\Readme;
 
+//use WordPressdotorg\Plugin_Directory\Markdown;
+
 /**
- * Based on WordPress.org Plugin Readme Parser.
+ * WordPress.org Plugin Readme Parser.
+ *
  * Based on Baikonur_ReadmeParser from https://github.com/rmccue/WordPress-Readme-Parser
+ *
+ * @package WordPressdotorg\Plugin_Directory\Readme
  */
 class Parser {
 
@@ -48,17 +53,11 @@ class Parser {
 	public $license_uri = '';
 
 	/**
-	 * @var array
-	 */
-	public $sections = array();
-
-	/**
 	 * Warning flags which indicate specific parsing failures have occured.
 	 *
 	 * @var array
 	 */
 	public $warnings = array();
-
 
 	/**
 	 * These are the valid header mappings for the header.
@@ -76,6 +75,7 @@ class Parser {
 		'license'           => 'license',
 		'license uri'       => 'license_uri',
 	);
+
 	/**
 	 * Parser constructor.
 	 *
@@ -92,18 +92,21 @@ class Parser {
 	 * @return bool
 	 */
 	protected function parse_readme( $file ) {
-
 		$contents = file_get_contents( $file );
+
 		if ( preg_match( '!!u', $contents ) ) {
 			$contents = preg_split( '!\R!u', $contents );
 		} else {
 			$contents = preg_split( '!\R!', $contents ); // regex failed due to invalid UTF8 in $contents, see #2298
 		}
-		$contents = array_map( array( $this, 'strip_newlines' ), $contents );	
+
+		$contents = array_map( array( $this, 'strip_newlines' ), $contents );
+
 		// Strip UTF8 BOM if present.
 		if ( 0 === strpos( $contents[0], "\xEF\xBB\xBF" ) ) {
 			$contents[0] = substr( $contents[0], 3 );
 		}
+
 		// Convert UTF-16 files.
 		if ( 0 === strpos( $contents[0], "\xFF\xFE" ) ) {
 			foreach ( $contents as $i => $line ) {
@@ -128,7 +131,7 @@ class Parser {
 			array_shift( $contents );
 		}
 
-		// Handle readme's which do `=== Plugin Name ===\nMy SuperAwesomePlugin Name\n.
+		// Handle readme's which do `=== Plugin Name ===\nMy SuperAwesomePlugin Name\n...`
 		if ( 'plugin name' == strtolower( $this->name ) ) {
 			$this->name = $line = $this->get_first_nonwhitespace( $contents );
 
@@ -146,6 +149,7 @@ class Parser {
 		do {
 			$value = null;
 			if ( false === strpos( $line, ':' ) ) {
+
 				// Some plugins have line-breaks within the headers.
 				if ( empty( $line ) ) {
 					break;
@@ -163,12 +167,6 @@ class Parser {
 		} while ( ( $line = array_shift( $contents ) ) !== null );
 		array_unshift( $contents, $line );
 
-		if ( ! empty( $headers['tags'] ) ) {
-			$this->tags = explode( ',', $headers['tags'] );
-			$this->tags = array_map( 'trim', $this->tags );
-			$this->tags = array_filter( $this->tags );
-			$this->tags = array_slice( $this->tags, 0, 5 );
-		}
 		if ( ! empty( $headers['requires'] ) ) {
 			$this->requires = $this->sanitize_requires_version( $headers['requires'] );
 		}
@@ -183,6 +181,7 @@ class Parser {
 			$this->contributors = array_map( 'trim', $this->contributors );
 			$this->contributors = $this->sanitize_contributors( $this->contributors );
 		}
+
 		if ( ! empty( $headers['license'] ) ) {
 			// Handle the many cases of "License: GPLv2 - http://..."
 			if ( empty( $headers['license_uri'] ) && preg_match( '!(https?://\S+)!i', $headers['license'], $url ) ) {
@@ -194,13 +193,6 @@ class Parser {
 		if ( ! empty( $headers['license_uri'] ) ) {
 			$this->license_uri = $headers['license_uri'];
 		}
-
-		if ( ! empty( $section_name ) ) {
-			$this->sections[ $section_name ] .= trim( $current );
-		}
-
-		// Filter out any empty sections.
-		$this->sections = array_filter( $this->sections );
 
 		return true;
 	}
@@ -231,6 +223,7 @@ class Parser {
 	protected function strip_newlines( $line ) {
 		return rtrim( $line, "\r\n" );
 	}
+
 	/**
 	 * @access protected
 	 *
@@ -254,26 +247,10 @@ class Parser {
 	 */
 	protected function sanitize_contributors( $users ) {
 		foreach ( $users as $i => $name ) {
-			// Contributors should be listed by their WordPress.org Login name (Example: 'Joe Bloggs')
-			$user = get_user_by( 'login', $name );
-
-			// Or failing that, by their user_nicename field (Example: 'joe-bloggs')
-			if ( ! $user ) {
-				$user = get_user_by( 'slug', $name );
-			}
-
 			if ( $name == 'automattic' ) {
-				unset( $users[ $i ] );
 				$this->warnings['contributor_automattic'] = true;
 				continue;
-			} elseif( ! $user ) {
-				unset( $users[ $i ] );
-				$this->warnings['contributor_ignored'] = true;
-				continue;
 			}
-
-			// Overwrite whatever the author has specified with the sanitized nicename.
-			$users[ $i ] = $user->user_nicename;
 		}
 
 		return $users;
@@ -362,10 +339,10 @@ class Parser {
 			list( $version, ) = explode( '-', $version );
 
 			if (
-				// x.y or x.y.z.
+				// x.y or x.y.z
 				! preg_match( '!^\d+\.\d(\.\d+)?$!', $version ) ||
-				// Allow themes to mark themselves as requireing Stable+0.1 (trunk/master) but not higher.
-				defined( 'WP_CORE_STABLE_BRANCH' ) && ( (float) $version > (float) WP_CORE_STABLE_BRANCH + 0.1 )
+				// Allow plugins to mark themselves as requireing Stable+0.1 (trunk/master) but not higher
+				defined( 'WP_CORE_STABLE_BRANCH' ) && ( (float)$version > (float)WP_CORE_STABLE_BRANCH+0.1 )
 			) {
 				$this->warnings['requires_header_ignored'] = true;
 				// Ignore the readme value.
